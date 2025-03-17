@@ -9,7 +9,7 @@ x1 = 0.925;
 y0 = 0.9867;
 y1 = 0.2180;
 
-para_0 = [x0, x1, y0, y1];
+para_0 = [x0, x1, y0, y1]; % initial guess
 
 load(filename_OCPp)
 y_data = OCV_golden.OCVchg(:,1);
@@ -27,17 +27,24 @@ ocv_data =OCV_golden.OCVchg(:,2);
 % model -> function
 
 % cost -> function 
-cost_eval = cost(soc_data,para_0,y_data,OCPp_data,x_data,OCPn_data,ocv_data);
+%cost_eval = cost(soc_data,para_0,y_data,OCPp_data,x_data,OCPn_data,ocv_data);
 
 % minimier
 fhandle_cost =@(para)cost(soc_data,para,y_data,OCPp_data,x_data,OCPn_data,ocv_data);
-options = optimoptions(@fmincon,'Display','iter','MaxIterations',1);
+options = optimoptions(@fmincon,'Display','iter','MaxIterations',10);
 
-para_hat = fmincon(cost,para_0,[],[],[],[],[0 0.5 0.5 0],[0.5 1 1 0.5],[],options);
+para_hat = fmincon(fhandle_cost,para_0,[],[],[],[],[0 0.5 0.5 0],[0.5 1 1 0.5],[],options);
 
 
 % present results
+OCV_0 = ocv_model(soc_data,para_0,y_data,OCPp_data,x_data,OCPn_data);
+OCV_hat = ocv_model(soc_data,para_hat,y_data,OCPp_data,x_data,OCPn_data);
 
+figure(1)
+plot(soc_data,ocv_data, '-k'); hold on
+plot(soc_data,OCV_hat,'-r')
+plot(soc_data,OCV_0,'-b')
+legend({'data','model','initial'})
 
 
 
