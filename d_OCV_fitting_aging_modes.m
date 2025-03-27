@@ -6,7 +6,7 @@ clear; clc; close all
 filename_OCPp = 'CHC_processed.mat';
 filename_OCPn = 'AHC_processed.mat';
 filename_OCV = {'250228 RPT-Aging_127.0.0.1-BTS85-82-1-1-61_processed.mat';
-    "250317 RPT_127.0.0.1-BTS85-82-1-1-76_processed.mat"};
+                 '250317 RPT_127.0.0.1-BTS85-82-1-1-76_processed.mat'};
 
 load(filename_OCPp)
 OCPp = OCV_golden.OCVchg(:,1:2); % [y,OCPp] 
@@ -21,7 +21,7 @@ OCPn(:,2)=movmean(OCPn(:,2),round(length(OCPn(:,2))/200));
 clear OCV_golden
 
 
-% OCV Struc
+%% OCV Struc
 N = length(filename_OCV);
 for i = 1:N
 load(filename_OCV{i})
@@ -32,7 +32,9 @@ OCV_struct(i).OCV = OCV_data;
 end
 
 clear OCV_data
-% for
+
+
+%% for loop
 
 for i = 1:length(OCV_struct)
 
@@ -90,12 +92,13 @@ plot(OCV_data(1:end-1,1),-dvdq_OCPn); hold on
 ylim([0 500])
 
 
+% RESULTS
 
 % para struc
 para_hat_struct(i).para_hat = para_hat;
 
 
-% 
+% aging modes
 if i == 1
 else
     para_hat_struct(i).LAMp = para_hat_struct(1).para_hat(4)-para_hat_struct(i).para_hat(4);
