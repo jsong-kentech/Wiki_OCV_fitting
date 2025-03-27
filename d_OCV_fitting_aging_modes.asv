@@ -1,0 +1,146 @@
+
+clear; clc; close all
+
+% Load (OCV x N, OCPp, OCPn)
+
+filename_OCPp = 'CHC_processed.mat';
+filename_OCPn = 'AHC_processed.mat';
+filename_OCV = {'250228 RPT-Aging_127.0.0.1-BTS85-82-1-1-61_processed.mat';
+    "250317 RPT_127.0.0.1-BTS85-82-1-1-76_processed.mat"};
+
+load(filename_OCPp)
+OCPp = OCV_golden.OCVchg(:,1:2); % [y,OCPp] 
+OCPp(:,2)=movmean(OCPp(:,2),round(length(OCPp(:,2))/200));
+%OCPp(:,2)=movmean(OCPp(:,2),5);
+clear OCV_golden
+
+load(filename_OCPn)
+OCPn = OCV_golden.OCVchg(:,1:2); %[x,OCPn]
+OCPn(:,2)=movmean(OCPn(:,2),round(length(OCPn(:,2))/200));
+%OCPn(:,2)=movmean(OCPn(:,2),5);
+clear OCV_golden
+
+
+% OCV Struc
+N = length(filename_OCV);
+for i = 1:N
+load(filename_OCV{i})
+OCV_data = [OCV_golden.OCVchg(:,3), OCV_golden.OCVchg(:,2)]; % [Q_cell, OCV]
+OCV_data(:,2)=movmean(OCV_data(:,2),round(length(OCV_data(:,2))/200));
+%OCV_data(:,2)=movmean(OCV_data(:,2),5);
+OCV_struct(i).OCV = OCV_data; 
+end
+clear OCV_data
+% for
+
+for i = 1:length(OCV_struct)
+
+OCV_data = OCV_struct(i).OCV;
+%figure(1)
+%plot(OCV_data(:,1),OCV_data(:,2)); hold on
+
+
+% Fitting
+para_0 = [0.02  4.4e-3  0.95 5.5e-3];
+%OCV_model_0 = func_OCV_model(OCV_data(:,1),para_0,OCPp,OCPn);
+%plot(OCV_data(:,1),OCV_model_0)
+
+
+para_lb = [0 0.5*max(OCV_data(:,1)) 0.5 0.5*max(OCV_data(:,1))];
+para_ub = [0.5 4*max(OCV_data(:,1)) 1 4*max(OCV_data(:,1))];
+
+% option "optimset"
+options = optimset('display','iter','MaxIter',400,'MaxFunEvals',1e5,...
+        'TolFun',1e-10,'TolX',1e-8,'FinDiffType','central');
+fh_cost = @(para)func_cost(OCV_data(:,1),para,OCPp,OCPn,OCV_data(:,2));
+para_hat = fmincon(fh_cost,para_0,[],[],[],[],para_lb,para_ub,[],options);
+
+OCV_model_0 = func_OCV_model(OCV_data(:,1),para_0,OCPp,OCPn);
+OCV_model_hat = func_OCV_model(OCV_data(:,1),para_hat,OCPp,OCPn);
+
+
+figure(1)
+subplot(N,1,i)
+plot(OCV_data(:,1),OCV_data(:,2)); hold on
+plot(OCV_data(:,1),OCV_model_hat)
+plot(OCV_data(:,1),OCV_model_0)
+
+
+
+% dVdQ
+dvdq_OCV_data = diff(OCV_data(:,2))./diff(OCV_data(:,1));
+dvdq_OCV_model = diff(OCV_model_hat)./diff(OCV_data(:,1));
+
+x_Q = para_hat(1) + OCV_data(:,1)/para_hat(2);
+y_Q = para_hat(3) - OCV_data(:,1)/para_hat(4);
+OCPn_Q = interp1(OCPn(:,1),OCPn(:,2),x_Q,'linear','extrap');
+OCPp_Q = interp1(OCPp(:,1),OCPp(:,2),y_Q,'linear','extrap');
+
+dvdq_OCPp =diff(OCPp_Q)./diff(OCV_data(:,1));
+dvdq_OCPn =diff(OCPn_Q)./diff(OCV_data(:,1));
+
+figure(2)
+subplot(N,1,i)
+plot(OCV_data(1:end-1,1),dvdq_OCV_data); hold on
+plot(OCV_data(1:end-1,1),dvdq_OCV_model); hold on
+plot(OCV_data(1:end-1,1),dvdq_OCPp); hold on
+plot(OCV_data(1:end-1,1),-dvdq_OCPn); hold on
+
+ylim([0 500])
+
+
+
+% para struc
+para_hat_struct(i).para_hat = para_hat;
+
+
+% 
+if i == 1
+else
+    para_hat_struct(i).LAMp = para_hat_struct(1).para_hat(4)-para_hat_struct(i).para_hat(4);
+    para_hat_struct(i).LAMn = para_hat_struct(1).para_hat(2)-para_hat_struct(i).para_hat(2);
+    para_hat_strcut(i).LLI = ((para_hat_struct(1).para_hat(1)*para_hat_struct(1).para_hat(2)) +...
+                            (para_hat_struct(1).para_hat(3)*para_hat_struct(1).para_hat(4))) -
+                            ((para_hat_struct(i).para_hat(1)*para_hat_struct(i).para_hat(2)) +...
+                            (para_hat_struct(i).para_hat(3)*para_hat_struct(i).para_hat(4)))
+
+
+end
+
+
+end
+
+
+% (func) model
+
+function OCV_Q = func_OCV_model(Q,para,OCPp,OCPn)
+
+x0 = para(1);
+Qn = para(2);
+y0 = para(3);
+Qp = para(4);
+
+x_Q = x0+Q/Qn;
+y_Q = y0-Q/Qp;
+
+OCPn_Q = interp1(OCPn(:,1),OCPn(:,2),x_Q,'linear','extrap');
+OCPp_Q = interp1(OCPp(:,1),OCPp(:,2),y_Q,'linear','extrap');
+
+
+OCV_Q = OCPp_Q - OCPn_Q;
+
+end
+
+
+
+% (func) cost
+function cost = func_cost(Q,para,OCPp,OCPn,OCV_data_V)
+
+
+OCV_model_V = func_OCV_model(Q,para,OCPp,OCPn);
+
+cost = sum((OCV_model_V - OCV_data_V).^2);
+
+
+
+end

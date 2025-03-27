@@ -1,5 +1,7 @@
 % 1. local minimum vs. global minimum
    % cost curve (x1,y0) vs. cost
+       %[added later]: better to optimize the other two parameters at every
+       %combinations
 % 2. effect of initial guess
 
 
